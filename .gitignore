@@ -1,0 +1,9 @@
+﻿HairJiggleUnity/Library
+HairJiggleUnity/Temp
+HairJiggleUnity/UserSettings
+HairJiggleUnity/Logs
+HairJiggleUnity/obj
+*.csproj
+.vsconfig
+*.sln
+.vs
