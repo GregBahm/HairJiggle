@@ -1,0 +1,28 @@
+#pragma kernel VelocityCompute
+
+StructuredBuffer<float3> _HairBasePoints;
+RWStructuredBuffer<float3> _HairMomentum;
+
+float4x4 _LastHeadBone;
+float4x4 _HeadBone;
+
+float _MomentumGain;
+float _MomentumDecay;
+
+[numthreads(128,1,1)]
+void VelocityCompute(uint3 id : SV_DispatchThreadID)
+{
+	uint index = id.x;
+	float4 baseHairPoint = float4(_HairBasePoints[index], 1);
+
+	float3 lastHairPoint = mul(_LastHeadBone, baseHairPoint);
+	float3 hairPoint = mul(_HeadBone, baseHairPoint);
+
+	float3 delta = hairPoint - lastHairPoint;
+
+	float3 momentum = _HairMomentum[index];
+	momentum += delta * _MomentumGain;
+	momentum *= _MomentumDecay;
+
+	_HairMomentum[index] = momentum;
+}
