@@ -34,12 +34,12 @@ public class HairJiggle : MonoBehaviour
 
     private void Start()
     {
-        hairVertCount = hairMesh.triangles.Length;
+        hairVertCount = hairMesh.vertexCount;
         hairBasePoints = GetHairBasePointsBuffer();
-        hairMomentum = new ComputeBuffer(hairMesh.triangles.Length, hairMomentumStride);
+        hairMomentum = new ComputeBuffer(hairVertCount, hairMomentumStride);
 
         velocityComputeKernel = velocityCompute.FindKernel("VelocityCompute");
-        dispatchGroups = Mathf.FloorToInt(hairVertCount / dispatchSize);
+        dispatchGroups = Mathf.CeilToInt((float)hairVertCount / dispatchSize);
 
         lastHeadBonePos = headBone.localToWorldMatrix;
     }
@@ -68,12 +68,11 @@ public class HairJiggle : MonoBehaviour
     private ComputeBuffer GetHairBasePointsBuffer()
     {
         ComputeBuffer ret = new ComputeBuffer(hairVertCount, basePointStride);
-        Vector3[] data = new Vector3[hairMesh.triangles.Length];
+        Vector3[] data = new Vector3[hairVertCount];
 
-        // do something with the vertices
-        for (int i = 0; i < hairMesh.triangles.Length; i++)
+        for (int i = 0; i < hairVertCount; i++)
         {
-            data[i] = hairMesh.vertices[hairMesh.triangles[i]];
+            data[i] = hairMesh.vertices[i];
         }
         ret.SetData(data);
 
