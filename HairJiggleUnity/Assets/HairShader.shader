@@ -16,7 +16,7 @@ Shader "Unlit/HairShader"
 
             #include "UnityCG.cginc"
 
-            StructuredBuffer<float3> _HairMomentum;
+            StructuredBuffer<float3> _HairPosition;
 
             struct appdata
             {
@@ -35,11 +35,13 @@ Shader "Unlit/HairShader"
 
             float4 GetVertex(appdata v)
             {
-                float3 momentum = _HairMomentum[v.index];
-                float3 worldPos = mul(unity_ObjectToWorld, v.vertex);
-                worldPos += momentum;
-                float3 objPos = mul(unity_WorldToObject, float4(worldPos, 1));
-                return UnityObjectToClipPos(float4(objPos, 1));
+                float3 hairWorldPos = _HairPosition[v.index];
+                if (length(hairWorldPos) > 0)
+                {
+                    float3 objPos = mul(unity_WorldToObject, float4(hairWorldPos, 1)); // TODO: collapse this line and the line below
+                    return UnityObjectToClipPos(float4(objPos, 1));
+                }
+                return UnityObjectToClipPos(v.vertex);
             }
 
             v2f vert (appdata v)
@@ -57,5 +59,5 @@ Shader "Unlit/HairShader"
             }
             ENDCG
         }
-    }
+    } 
 }

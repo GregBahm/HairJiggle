@@ -7,9 +7,9 @@ using UnityEngine;
 public class HairJiggle : MonoBehaviour
 {
     [SerializeField]
-    private float momentumGain;
+    private float gain;
     [SerializeField] 
-    private float momentumDecay;
+    private float decay;
 
     [SerializeField]
     private Mesh hairMesh;
@@ -22,9 +22,11 @@ public class HairJiggle : MonoBehaviour
 
     private int hairVertCount; // TODO: handle merged verts
     private const int basePointStride = sizeof(float) * 3;
-    private ComputeBuffer hairBasePoints;
-    private const int hairMomentumStride = sizeof(float) * 3;
-    private ComputeBuffer hairMomentum;
+    private ComputeBuffer hairMeshPoints;
+    private const int hairPositionsStride = sizeof(float) * 3;
+    private ComputeBuffer hairPositions;
+    private const int hairVelocityStride = sizeof(float) * 3;
+    private ComputeBuffer hairVelocity;
 
     private int velocityComputeKernel;
     private const int dispatchSize = 128;
@@ -35,8 +37,9 @@ public class HairJiggle : MonoBehaviour
     private void Start()
     {
         hairVertCount = hairMesh.vertexCount;
-        hairBasePoints = GetHairBasePointsBuffer();
-        hairMomentum = new ComputeBuffer(hairVertCount, hairMomentumStride);
+        hairMeshPoints = GetHairMeshPointsBuffer();
+        hairPositions = new ComputeBuffer(hairVertCount, hairPositionsStride);
+        hairVelocity = new ComputeBuffer(hairVertCount, hairVelocityStride);
 
         velocityComputeKernel = velocityCompute.FindKernel("VelocityCompute");
         dispatchGroups = Mathf.CeilToInt((float)hairVertCount / dispatchSize);
@@ -48,24 +51,25 @@ public class HairJiggle : MonoBehaviour
     {
         velocityCompute.SetMatrix("_HeadBone", headBone.localToWorldMatrix);
         velocityCompute.SetMatrix("_LastHeadBone", lastHeadBonePos);
-        velocityCompute.SetFloat("_MomentumGain", momentumGain);
-        velocityCompute.SetFloat("_MomentumDecay", momentumDecay);
-        velocityCompute.SetBuffer(velocityComputeKernel, "_HairBasePoints", hairBasePoints);
-        velocityCompute.SetBuffer(velocityComputeKernel, "_HairMomentum", hairMomentum);
+        velocityCompute.SetFloat("_Gain", gain);
+        velocityCompute.SetFloat("_Decay", decay);
+        velocityCompute.SetBuffer(velocityComputeKernel, "_HairMeshPoints", hairMeshPoints);
+        velocityCompute.SetBuffer(velocityComputeKernel, "_HairVelocity", hairVelocity);
+        velocityCompute.SetBuffer(velocityComputeKernel, "_HairPosition", hairPositions);
         velocityCompute.Dispatch(velocityComputeKernel, dispatchGroups, 1, 1);
 
-        hairMat.SetBuffer("_HairMomentum", hairMomentum);
+        hairMat.SetBuffer("_HairPosition", hairPositions);
 
         lastHeadBonePos = headBone.localToWorldMatrix;
     }
 
     private void OnDestroy()
     {
-        hairBasePoints.Release();
-        hairMomentum.Release();
+        hairMeshPoints.Release();
+        hairPositions.Release();
     }
 
-    private ComputeBuffer GetHairBasePointsBuffer()
+    private ComputeBuffer GetHairMeshPointsBuffer()
     {
         ComputeBuffer ret = new ComputeBuffer(hairVertCount, basePointStride);
         Vector3[] data = new Vector3[hairVertCount];
@@ -78,4 +82,5 @@ public class HairJiggle : MonoBehaviour
 
         return ret;
     }
+
 }
