@@ -28,6 +28,7 @@ Shader "Unlit/HairShader"
                 float4 vertex : POSITION;
                 float3 normal : NORMAL;
                 float2 uv : TEXCOORD0;
+                float3 color : COLOR0;
             };
 
             struct v2f
@@ -35,18 +36,14 @@ Shader "Unlit/HairShader"
                 float2 uv : TEXCOORD0;
                 float4 vertex : SV_POSITION;
                 float3 normal : NORMAL;
+                float3 color : COLOR0;
             };
-
-            Texture2D _MeshInATexture;
-            SamplerState my_point_clamp_sampler;
 
             float4 GetVertPos(appdata v)
             {
                 if (_CraniumRadius > 0)
                 {
-                    float uvCoord = (float)v.index / (_VertCount - 1);
-
-                    float3 meshPos = _MeshInATexture.SampleLevel(my_point_clamp_sampler, float2(uvCoord, 0), 0);
+                    float3 meshPos = v.color;
                     
                     float3 unskinnedPos = mul(_RootBone, float4(meshPos, 1));
                     //return mul(UNITY_MATRIX_VP, float4(unskinnedPos, 1));
@@ -74,6 +71,7 @@ Shader "Unlit/HairShader"
                 o.vertex = GetVertPos(v);
                 o.uv = v.uv;
                 o.normal = v.normal* float3(-1, 1, 1);
+                o.color = v.color;
                 return o;
             }
 

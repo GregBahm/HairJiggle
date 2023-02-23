@@ -35,14 +35,25 @@ public class HairJiggle : MonoBehaviour
     [SerializeField]
     private float settle;
 
-    private Texture2D meshInATexture;
-
     private void Start()
     {
         InitializeHairJoints();
+        SetMeshInColor();
         hairMat = hair.material;
-        meshInATexture = GetMeshInATexture();
     }
+
+    private void SetMeshInColor()
+    {
+        int hairVertCount = hair.sharedMesh.vertexCount;
+        Color[] colors = new Color[hairVertCount];
+        for (int i = 0; i < hairVertCount; i++)
+        {
+            Vector3 item = hair.sharedMesh.vertices[i];
+            colors[i] = new Color(item.x, item.y, item.z);
+        }
+        hair.sharedMesh.colors = colors;
+    }
+
     private void InitializeHairJoints()
     {
         hairJoints = new Dictionary<Transform, HairJoint>(); 
@@ -63,11 +74,9 @@ public class HairJiggle : MonoBehaviour
 
     private void Update()
     {
-        hairMat.SetInt("_VertCount", meshInATexture.width);
         hairMat.SetVector("_CraniumCenter", cranium.position);
         hairMat.SetFloat("_CraniumRadius", cranium.localScale.x * .5f);
         hairMat.SetMatrix("_RootBone", hairProxyTransform.localToWorldMatrix);
-        hairMat.SetTexture("_MeshInATexture", meshInATexture);
     }
 
     private void FixedUpdate()
@@ -83,30 +92,6 @@ public class HairJiggle : MonoBehaviour
             item.Bone.position = item.DynamicObject.position;
             item.Bone.rotation = item.DynamicObject.rotation;
         }
-    }
-    private static int NearestPowerOf2(int N)
-    {
-        int a = (int)(Math.Log(N) / Math.Log(2));
-
-        if (Math.Pow(2, a) == N)
-            return N;
-
-        return (int)Math.Pow(2, a + 1);
-    }
-
-    private Texture2D GetMeshInATexture()
-    {
-        int hairVertCount = hair.sharedMesh.vertexCount;
-        Texture2D ret = new Texture2D(hairVertCount, 1, TextureFormat.RGBAFloat, false);
-        Color[] colors = new Color[hairVertCount];
-        for (int i = 0; i < hairVertCount; i++)
-        {
-            Vector3 item = hair.sharedMesh.vertices[i];
-            colors[i] = new Color(item.x, item.y, item.z, 0);
-        }
-        ret.SetPixels(0, 0, hairVertCount, 1, colors);
-        ret.Apply();
-        return ret;
     }
 
     private class HairJoint
