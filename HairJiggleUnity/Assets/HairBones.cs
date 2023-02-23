@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using UnityEngine;
 
 public class HairBones : MonoBehaviour
@@ -14,41 +15,66 @@ public class HairBones : MonoBehaviour
     private float drag;
     [SerializeField]
     private float angularDrag;
+    [SerializeField]
+    private float mass;
 
-    private Rigidbody[] bodies;
-    private SpringJoint[] joints;
+    private Item[] items;
+
+    [SerializeField]
+    private float settle;
 
     private void Start()
     {
-        bodies = new Rigidbody[chain.Length];
-        joints = new SpringJoint[chain.Length - 1];
-
+        items = new Item[chain.Length];
         for (int i = 0; i < chain.Length; i++)
         {
-            Rigidbody body = chain[i].gameObject.AddComponent<Rigidbody>();
-            body.constraints = i == 0 ? RigidbodyConstraints.FreezePosition : RigidbodyConstraints.None;
-            bodies[i] = body;
+            items[i] = new Item(chain[i].gameObject);
         }
-
-        for (int i = 0; i < chain.Length - 1; i++)
+        foreach (var item in items)
         {
-            SpringJoint springJoint = chain[i + 1].gameObject.AddComponent<SpringJoint>();
-            springJoint.connectedBody = bodies[i];
-            joints[i] = springJoint;
+            item.FinishInitialization();
+        }
+        foreach (var item in items)
+        {
+            item.Trans.parent = null;
         }
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
-        foreach (var item in joints)
+        foreach (var item in items)
         {
-            item.spring = spring;
-            item.damper = damper;
+            item.Body.drag = drag;
+            item.Body.angularDrag = angularDrag;
+            item.Body.mass = mass;
+            item.Joint.spring = spring;
+            item.Joint.damper = damper;
+            item.Trans.localPosition = Vector3.Lerp(item.Trans.position, item.BasePos.position, settle);
+            item.Trans.localRotation = Quaternion.Lerp(item.Trans.rotation, item.BasePos.rotation, settle);
         }
-        foreach (var item in bodies)
+    }
+
+    private class Item
+    {
+        public Transform BasePos { get; private set; }
+        public Transform Trans { get; private set; }
+        public Rigidbody Body { get; private set; }
+        public SpringJoint Joint { get; private set; }
+
+        public Item(GameObject obj)
         {
-            item.drag = drag;
-            item.angularDrag = angularDrag;
+            Trans = obj.transform;
+            Body = obj.gameObject.AddComponent<Rigidbody>();
+            Joint = obj.gameObject.AddComponent<SpringJoint>();
+            BasePos = new GameObject().transform;
+            BasePos.parent = Trans.parent;
+            BasePos.localPosition = Trans.localPosition;
+            BasePos.localRotation = Trans.localRotation;
+        }
+
+        public void FinishInitialization()
+        {
+            Joint.connectedBody = Trans.parent.GetComponent<Rigidbody>();
         }
     }
 }

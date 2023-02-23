@@ -1,86 +1,97 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Dynamic;
+using System.Linq;
+using Unity.VisualScripting;
 using Unity.VisualScripting.Antlr3.Runtime;
 using UnityEngine;
+using static UnityEditor.Progress;
 
 public class HairJiggle : MonoBehaviour
 {
     [SerializeField]
-    private float gain;
-    [SerializeField] 
-    private float decay;
+    private Transform hairJointRoot;
+    Dictionary<Transform, HairJoint> hairJoints;
 
     [SerializeField]
-    private Mesh hairMesh;
-    [SerializeField]
-    private Transform headBone;
-    [SerializeField]
-    private ComputeShader velocityCompute;
-    [SerializeField]
-    private Material hairMat;
+    private float spring;
 
-    private int hairVertCount; // TODO: handle merged verts
-    private const int basePointStride = sizeof(float) * 3;
-    private ComputeBuffer hairMeshPoints;
-    private const int hairPositionsStride = sizeof(float) * 3;
-    private ComputeBuffer hairPositions;
-    private const int hairVelocityStride = sizeof(float) * 3;
-    private ComputeBuffer hairVelocity;
+    [SerializeField]
+    private float damper;
 
-    private int velocityComputeKernel;
-    private const int dispatchSize = 128;
-    private int dispatchGroups;
+    [SerializeField]
+    private float mass;
 
-    private Matrix4x4 lastHeadBonePos;
+    [SerializeField]
+    private float drag;
+
+    [SerializeField]
+    private float settle;
 
     private void Start()
     {
-        hairVertCount = hairMesh.vertexCount;
-        hairMeshPoints = GetHairMeshPointsBuffer();
-        hairPositions = new ComputeBuffer(hairVertCount, hairPositionsStride);
-        hairVelocity = new ComputeBuffer(hairVertCount, hairVelocityStride);
-
-        velocityComputeKernel = velocityCompute.FindKernel("VelocityCompute");
-        dispatchGroups = Mathf.CeilToInt((float)hairVertCount / dispatchSize);
-
-        lastHeadBonePos = headBone.localToWorldMatrix;
+        InitializeHairJoints();
     }
 
-    private void Update()
+    private void InitializeHairJoints()
     {
-        velocityCompute.SetMatrix("_HeadBone", headBone.localToWorldMatrix);
-        velocityCompute.SetMatrix("_LastHeadBone", lastHeadBonePos);
-        velocityCompute.SetFloat("_Gain", gain);
-        velocityCompute.SetFloat("_Decay", decay);
-        velocityCompute.SetBuffer(velocityComputeKernel, "_HairMeshPoints", hairMeshPoints);
-        velocityCompute.SetBuffer(velocityComputeKernel, "_HairVelocity", hairVelocity);
-        velocityCompute.SetBuffer(velocityComputeKernel, "_HairPosition", hairPositions);
-        velocityCompute.Dispatch(velocityComputeKernel, dispatchGroups, 1, 1);
-
-        hairMat.SetBuffer("_HairPosition", hairPositions);
-
-        lastHeadBonePos = headBone.localToWorldMatrix;
-    }
-
-    private void OnDestroy()
-    {
-        hairMeshPoints.Release();
-        hairPositions.Release();
-    }
-
-    private ComputeBuffer GetHairMeshPointsBuffer()
-    {
-        ComputeBuffer ret = new ComputeBuffer(hairVertCount, basePointStride);
-        Vector3[] data = new Vector3[hairVertCount];
-
-        for (int i = 0; i < hairVertCount; i++)
+        // Roll through the children of the hair joints and make their base objects.
+        // Then roll through the objects again and connect them up
+        hairJoints = new Dictionary<Transform, HairJoint>(); 
+        Rigidbody rootRigid = hairJointRoot.GetComponent<Rigidbody>();
+        foreach (Transform boneJoint in hairJointRoot.GetComponentsInChildren<Transform>()
+            .Where(item => item != hairJointRoot))
         {
-            data[i] = hairMesh.vertices[i];
+            HairJoint hairJoint = new HairJoint(boneJoint, hairJointRoot);
+            hairJoints.Add(boneJoint, hairJoint);
         }
-        ret.SetData(data);
-
-        return ret;
+        foreach (HairJoint item in hairJoints.Values)
+        {
+            Transform parentBone = item.Bone.parent;
+            Rigidbody body = hairJoints.ContainsKey(parentBone) ? hairJoints[parentBone].RigidBody : rootRigid;
+            item.SpringJoint.connectedBody = body;
+        }
     }
 
+    private void FixedUpdate()
+    {
+        foreach (HairJoint item in hairJoints.Values)
+        {
+            item.RigidBody.drag = drag;
+            item.RigidBody.mass = mass;
+            item.SpringJoint.spring = spring;
+            item.SpringJoint.damper = damper;
+            item.DynamicObject.position = Vector3.Lerp(item.DynamicObject.position, item.RestPosition.position, settle);
+            item.DynamicObject.rotation = Quaternion.Lerp(item.DynamicObject.rotation, item.RestPosition.rotation, settle);
+            item.Bone.position = item.DynamicObject.position;
+            item.Bone.rotation = item.DynamicObject.rotation;
+        }
+    }
+
+    private class HairJoint
+    {
+        public Transform Bone { get; private set; }
+        public Transform RestPosition { get; private set; }
+        public Transform DynamicObject { get; private set; }
+
+        public SpringJoint SpringJoint { get; private set; }
+        public Rigidbody RigidBody { get; private set; }
+
+        public HairJoint(Transform bone, Transform hairRoot)
+        {
+            Bone = bone;
+            RestPosition = new GameObject(bone.gameObject.name + " rest").transform;
+            RestPosition.rotation = bone.rotation;
+            RestPosition.position = bone.position;
+            RestPosition.SetParent(hairRoot, true);
+
+            GameObject dynamicObj = new GameObject(bone.gameObject.name + " dynamics");
+            DynamicObject = dynamicObj.transform;
+            DynamicObject.rotation = bone.rotation;
+            DynamicObject.position = bone.position;
+            RigidBody = dynamicObj.AddComponent<Rigidbody>();
+            SpringJoint = dynamicObj.AddComponent<SpringJoint>();
+        }
+    }
 }
