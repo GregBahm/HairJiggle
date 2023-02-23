@@ -1,18 +1,23 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
-using Unity.VisualScripting;
-using Unity.VisualScripting.Antlr3.Runtime;
 using UnityEngine;
-using static UnityEditor.Progress;
 
 public class HairJiggle : MonoBehaviour
 {
     [SerializeField]
     private Transform hairJointRoot;
     Dictionary<Transform, HairJoint> hairJoints;
+
+    [SerializeField]
+    private SkinnedMeshRenderer hair;
+
+    [SerializeField]
+    private Transform cranium;
+
+    [SerializeField]
+    private Transform hairProxyTransform;
+
+    private Material hairMat;
 
     [SerializeField]
     private float spring;
@@ -29,15 +34,18 @@ public class HairJiggle : MonoBehaviour
     [SerializeField]
     private float settle;
 
+    private const int basePointStride = sizeof(float) * 3;
+    private ComputeBuffer hairMeshPoints;
+
     private void Start()
     {
         InitializeHairJoints();
+        hairMat = hair.material;
+        hairMeshPoints = GetHairMeshPointsBuffer();
     }
 
     private void InitializeHairJoints()
     {
-        // Roll through the children of the hair joints and make their base objects.
-        // Then roll through the objects again and connect them up
         hairJoints = new Dictionary<Transform, HairJoint>(); 
         Rigidbody rootRigid = hairJointRoot.GetComponent<Rigidbody>();
         foreach (Transform boneJoint in hairJointRoot.GetComponentsInChildren<Transform>()
@@ -54,6 +62,14 @@ public class HairJiggle : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        hairMat.SetVector("_CraniumCenter", cranium.position);
+        hairMat.SetFloat("_CraniumRadius", cranium.localScale.x * .5f);
+        hairMat.SetBuffer("_HairPosition", hairMeshPoints);
+        hairMat.SetMatrix("_RootBone", hairProxyTransform.localToWorldMatrix);
+    }
+
     private void FixedUpdate()
     {
         foreach (HairJoint item in hairJoints.Values)
@@ -67,6 +83,26 @@ public class HairJiggle : MonoBehaviour
             item.Bone.position = item.DynamicObject.position;
             item.Bone.rotation = item.DynamicObject.rotation;
         }
+    }
+
+    private ComputeBuffer GetHairMeshPointsBuffer()
+    {
+        int hairVertCount = hair.sharedMesh.vertexCount;
+        ComputeBuffer ret = new ComputeBuffer(hairVertCount, basePointStride);
+        Vector3[] data = new Vector3[hairVertCount];
+
+        for (int i = 0; i < hairVertCount; i++)
+        {
+            data[i] = hair.sharedMesh.vertices[i];
+        }
+        ret.SetData(data);
+
+        return ret;
+    }
+
+    private void OnDestroy()
+    {
+        hairMeshPoints.Release();
     }
 
     private class HairJoint

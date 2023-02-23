@@ -5,7 +5,7 @@ Shader "Unlit/HairShader"
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
+        Tags { "RenderType" = "Opaque" }
         LOD 100
 
         Pass
@@ -15,6 +15,12 @@ Shader "Unlit/HairShader"
             #pragma fragment frag
 
             #include "UnityCG.cginc"
+
+            Buffer<float3> _HairPosition;
+
+            float4x4 _RootBone;
+            float3 _CraniumCenter;
+            float _CraniumRadius;
 
             struct appdata
             {
@@ -31,12 +37,37 @@ Shader "Unlit/HairShader"
                 float3 normal : NORMAL;
             };
 
+            float4 GetVertPos(appdata v)
+            {
+                if (_CraniumRadius > 0)
+                {
+
+                    float3 meshPos = _HairPosition[v.index];
+                    float3 unskinnedPos = mul(_RootBone, float4(meshPos, 1));
+
+                    float3 unskinnedWorldPos = mul(unity_ObjectToWorld, unskinnedPos);
+                    float3 skinnedWorldPos = mul(unity_ObjectToWorld, v.vertex);
+                    
+                    float distToCranium = length(_CraniumCenter - skinnedWorldPos);
+                    //if (distToCranium < _CraniumRadius) // the vert is in the cranium
+                    //{
+                        float baseDist = length(_CraniumCenter - unskinnedPos);
+                        float3 norm = normalize(skinnedWorldPos - _CraniumCenter);
+                        float3 newPos = norm * baseDist + _CraniumCenter;
+
+                        return mul(UNITY_MATRIX_VP, float4(newPos, 1));
+                    //}
+
+                }
+                return UnityObjectToClipPos(v.vertex);
+            }
+
             v2f vert (appdata v)
             {
                 v2f o;
-                o.vertex = UnityObjectToClipPos(v.vertex);
+                o.vertex = GetVertPos(v);
                 o.uv = v.uv;
-                o.normal = v.normal;
+                o.normal = v.normal * float3(-1, 1, 1);
                 return o;
             }
 
