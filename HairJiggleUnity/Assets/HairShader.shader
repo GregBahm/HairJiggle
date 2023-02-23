@@ -16,11 +16,11 @@ Shader "Unlit/HairShader"
 
             #include "UnityCG.cginc"
 
-            Buffer<float3> _HairPosition;
-
             float4x4 _RootBone;
             float3 _CraniumCenter;
             float _CraniumRadius;
+
+            int _VertCount;
 
             struct appdata
             {
@@ -37,13 +37,19 @@ Shader "Unlit/HairShader"
                 float3 normal : NORMAL;
             };
 
+            Texture2D _MeshInATexture;
+            SamplerState my_point_clamp_sampler;
+
             float4 GetVertPos(appdata v)
             {
                 if (_CraniumRadius > 0)
                 {
+                    float uvCoord = (float)v.index / (_VertCount - 1);
 
-                    float3 meshPos = _HairPosition[v.index];
+                    float3 meshPos = _MeshInATexture.SampleLevel(my_point_clamp_sampler, float2(uvCoord, 0), 0);
+                    
                     float3 unskinnedPos = mul(_RootBone, float4(meshPos, 1));
+                    //return mul(UNITY_MATRIX_VP, float4(unskinnedPos, 1));
 
                     float3 unskinnedWorldPos = mul(unity_ObjectToWorld, unskinnedPos);
                     float3 skinnedWorldPos = mul(unity_ObjectToWorld, v.vertex);
@@ -67,7 +73,7 @@ Shader "Unlit/HairShader"
                 v2f o;
                 o.vertex = GetVertPos(v);
                 o.uv = v.uv;
-                o.normal = v.normal * float3(-1, 1, 1);
+                o.normal = v.normal* float3(-1, 1, 1);
                 return o;
             }
 
